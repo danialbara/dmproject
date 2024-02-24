@@ -1,0 +1,75 @@
+import numpy as np
+import scipy as sp
+import scipy.fft
+import numpy.fft
+from numpy.fft import fftfreq, fftshift
+from scipy.fft import fftn, ifftn, rfftn, irfftn, fftfreq, fftshift, rfftfreq
+import gc
+
+# loading delta_dm at z = 20
+delta_dm = np.load("/pscratch/sd/b/boryanah/Thesan/density_000.npy")
+delta_dm = delta_dm / np.mean(delta_dm, dtype=np.float64) - 1.
+np.save('/pscratch/sd/d/danialb/delta_dm.npy', delta_dm)
+
+# loading delta_dm_squared
+delta_dm_squared = delta_dm**2
+mean_delta_dm_squared = np.mean(delta_dm_squared)
+delta_dm_squared = delta_dm_squared - mean_delta_dm_squared
+np.save('/pscratch/sd/d/danialb/delta_dm_squared.npy', delta_dm_squared)
+del delta_dm_squared
+gc.collect()
+
+delta_dm_fft = sp.fft.rfftn(delta_dm)
+
+kx, ky, kz = fftfreq(delta_dm.shape[0]), fftfreq(delta_dm.shape[1]), rfftfreq(delta_dm.shape[2])
+kx, ky, kz = np.meshgrid(kx, ky, kz, indexing='ij')
+k2 = kx**2 + ky**2 + kz**2
+
+# loading nabla2_dm
+nabla2_dm = irfftn(delta_dm_fft*k2)
+np.save('/pscratch/sd/d/danialb/nabla2_dm.npy', nabla2_dm)
+del nabla2_dm
+gc.collect()
+
+del delta_dm 
+gc.collect()
+
+mask_k2 = k2 == 0.
+k2[mask_k2] = 1.
+
+# loading s2
+s_xy = irfftn(kx*ky*delta_dm_fft/k2)
+s2 = np.zeros_like(s_xy)
+s2 += 2.*s_xy**2
+print(s_xy)
+del s_xy
+gc.collect()
+
+s_xz = irfftn(kx*kz*delta_dm_fft/k2)
+s2 += 2.*s_xz**2
+del s_xz
+gc.collect()
+
+s_zy = irfftn(kz*ky*delta_dm_fft/k2)
+s2 += 2.*s_zy**2
+del s_zy
+gc.collect()
+
+s_xx = irfftn(kx*kx*delta_dm_fft/k2)
+s2 += s_xx**2
+del s_xx
+gc.collect()
+
+
+s_yy = irfftn(ky*ky*delta_dm_fft/k2)
+s2 += s_yy**2
+del s_yy
+gc.collect()
+
+s_zz = irfftn(kz*kz*delta_dm_fft/k2)
+s2 += s_zz**2
+del s_zz
+gc.collect()
+
+# s2 = s_xx**2 + s_yy**2 + s_zz**2 + 2.*s_xy + 2.*s_xz + 2.*s_zy
+np.save('/pscratch/sd/d/danialb/s2_dm.npy', s2)
