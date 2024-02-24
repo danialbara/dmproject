@@ -1,0 +1,98 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+import scipy
+import scipy.fft
+import numpy.fft
+from numpy.fft import fftfreq, fftshift
+from scipy.fft import fftn, ifftn, rfftn, irfftn, fftfreq, fftshift, rfftfreq
+
+massdataset = np.load('SubhaloMassType_fp_129.npy')
+subhalo_table = pd.DataFrame(massdataset) 
+most_massive_stellar_mass = subhalo_table.loc[:,4][0:100000]
+posdataset = np.load('SubhaloPos_fp_129.npy')
+posdataset_subset = posdataset[:100000]
+x = posdataset_subset[:, 0]
+y = posdataset_subset[:, 1]
+z = posdataset_subset[:, 2]
+stellar_mass = massdataset[:, 4]*1.e10 # Msun/h
+i_sort = np.argsort(stellar_mass)[::-1]
+i_sort = i_sort[:10000]
+x = posdataset[i_sort, 0]
+y = posdataset[i_sort, 1]
+z = posdataset[i_sort, 2]
+pcle_pos = np.load('pos_down_100000_snap_129_fp.npy')
+z_min = 250
+z_width = 30
+choice = (z > z_min) & (z < z_min + z_width)
+choice_pcle = (pcle_pos[:, 2] > z_min) & (pcle_pos[:, 2] < z_min + z_width)
+len(choice) == len(x)
+
+plt.scatter(pcle_pos[:, 0][choice_pcle], pcle_pos[:, 1][choice_pcle], s=0.01, color='b')
+#plt.scatter(x[choice], y[choice], s=1, color='r', marker="*")
+plt.axis('equal')
+plt.show()
+
+hist2d, _, _ = np.histogram2d(pcle_pos[:, 0][choice_pcle], pcle_pos[:, 1][choice_pcle], bins=50)
+nmesh = 32
+Lbox = 500. # cMpc/h
+bins = np.linspace(0., Lbox, nmesh+1)
+# hist3d, _, _, _ = np.histogramdd(pcle_pos[:, 0][choice_pcle], pcle_pos[:, 1][choice_pcle], bins=bins)
+hist3d, edges = np.histogramdd(pcle_pos, bins=[bins, bins, bins])
+plt.imshow(hist3d[:, :, 0], origin='lower', extent=[edges[0][0], edges[0][-1], edges[1][0], edges[1][-1]])
+plt.xlabel('x [Mpc/h]')
+plt.ylabel('y [Mpc/h]')
+plt.colorbar()
+plt.show()
+
+delta = hist3d/np.mean(hist3d) - 1
+delta_squared = delta**2
+mean_delta_squared = np.mean(delta_squared)
+result = delta_squared - mean_delta_squared
+result.mean()
+delta_fft = scipy.fft.rfftn(delta)
+power_3d = np.conj(delta_fft)*delta_fft
+power_3d
+delta_fft = rfftn(delta)
+# 3D grid of k^2
+kx, ky, kz = fftfreq(delta.shape[0]), fftfreq(delta.shape[1]), rfftfreq(delta.shape[2])
+kx, ky, kz = np.meshgrid(kx, ky, kz, indexing='ij')
+k2 = kx**2 + ky**2 + kz**2
+
+delta_fft_k2 = delta_fft*k2
+nabla2_delta = irfftn(delta_fft_k2)
+plt.imshow(nabla2_delta[:, :, 0], origin='lower', extent=[edges[0][0], edges[0][-1], edges[1][0], edges[1][-1]])
+np.linspace(0, 0.4, 41)
+plt.xlabel('x [Mpc/h]')
+plt.ylabel('y [Mpc/h]')
+plt.colorbar()
+plt.show()
+
+
+k_values = np.linspace(0, 0.4, 41)
+
+plt.imshow(nabla2_delta[:, :, 0], origin='lower', extent=[edges[0][0], edges[0][-1], edges[1][0], edges[1][-1]])
+plt.xlabel('x [Mpc/h]')
+plt.ylabel('y [Mpc/h]')
+plt.colorbar()
+
+plt.show()
+
+
+power_3d = np.conj(delta_fft)*delta_fft
+bins = np.linspace(0, 0.4, 41)
+binned_power, bin_edges = np.histogram(power_3d, bins=bins)
+#creating a 2D map by summing along one axis
+power_3d_map = np.sum(power_3d, axis=0)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+im = ax2.imshow(power_3d_map.real, cmap='viridis', origin='lower')
+ax2.set_title('Power 2D Map')
+ax2.set_xlabel('k_x')
+ax2.set_ylabel('k_y')
+plt.colorbar(im, ax=ax2, label='Power')
+ax1.plot(bin_edges[:-1], binned_power, marker='o', linestyle='-', color='b')
+ax1.set_title('Binned Power in k-space')
+ax1.set_xlabel('Power')
+ax1.set_ylabel('Count')
+plt.tight_layout()
+plt.show()
