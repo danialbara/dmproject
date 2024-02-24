@@ -1,0 +1,66 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# loading delta_dm, delta_dm_squared, and nabla2_dm
+data = np.load('data/power_dm.npz')
+pk_delta_dm = data['pk_delta_dm']
+data = np.load('data/power_dm_squared.npz')
+pk_delta_dm_squared = data['pk_delta_dm_squared']
+data = np.load('data/power_nabla2_dm.npz')
+pk_nabla2_dm = data['pk_nabla2_dm']
+data = np.load('data/power_s2_dm.npz')
+pk_s2_dm = data['pk_s2_dm']
+k_avg = data['k_avg']
+
+redshifts = [ 7.0, 7.5, 8.3, 10.82]
+snapshots = [ 240, 209, 168, 83]
+for i in range(len(redshifts)):
+    plt.figure(1+i)
+    plt.title(f"z = {redshifts[i]}")
+    
+    data = np.load(f"data/power_21_snap{snapshots[i]:d}.npz")
+    pk_21 = data['pk_21']    
+
+    # 2) pk_21_delta_dm
+    data = np.load(f"data/power_21_delta_dm_snap{snapshots[i]:d}.npz")
+    pk_21_delta_dm = data['pk_21_delta_dm']
+    
+    r_pk_21_delta_dm = (pk_21_delta_dm)/[(pk_21*pk_delta_dm)**(1/2)]
+    r_pk_21_delta_dm = r_pk_21_delta_dm.flatten()
+        
+    plt.plot(k_avg, np.abs(r_pk_21_delta_dm), label="21, delta_dm")
+    plt.gca().axhline(y=1, ls='--', color='k')
+   
+     # 3) pk_21_delta_dm_squared
+    data = np.load(f"data/power_21_delta_dm_squared_snap{snapshots[i]:d}.npz")
+    pk_21_delta_dm_squared = data['pk_21_delta_dm_squared']
+    
+    r_pk_21_delta_dm_squared = (pk_21_delta_dm_squared)/[(pk_21*pk_delta_dm_squared)**(1/2)]
+    r_pk_21_delta_dm_squared = r_pk_21_delta_dm_squared.flatten()
+        
+    plt.plot(k_avg, np.abs(r_pk_21_delta_dm_squared), label="21, delta_dm_squared")
+        
+     # 4) pk_21_nabla_2_dm
+    data = np.load(f"data/power_21_nabla2_dm_snap{snapshots[i]:d}.npz")
+    pk_21_nabla2_dm = data['pk_21_nabla2_dm']
+    
+    r_pk_21_nabla2_dm = (pk_21_nabla2_dm)/[(pk_21*pk_nabla2_dm)**(1/2)]
+    r_pk_21_nabla2_dm = r_pk_21_nabla2_dm.flatten()
+        
+    plt.plot(k_avg, np.abs(r_pk_21_nabla2_dm), label="21, nabla2_dm")        
+    
+     # 5) pk_21_s2_dm
+    data = np.load(f"data/power_21_s2_dm_snap{snapshots[i]:d}.npz")
+    pk_21_s2_dm = data['pk_21_s2_dm']
+     
+    r_pk_21_s2_dm = (pk_21_s2_dm)/[(pk_21*pk_s2_dm)**(1/2)]
+    r_pk_21_s2_dm = r_pk_21_s2_dm.flatten()
+        
+    plt.plot(k_avg, np.abs(r_pk_21_s2_dm), label="21, s2_dm")
+    plt.legend()
+    plt.xscale('log')
+    # plt.yscale('log')
+    plt.xlabel('k')
+    plt.ylabel('r(k)')
+    plt.ylim([0, 1.0])
+  
