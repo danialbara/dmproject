@@ -1,0 +1,138 @@
+import abacusnbody
+import abacusnbody.analysis
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+from scipy.fft import rfftn, irfftn
+from abacusnbody.analysis.power_spectrum import calc_pk_from_deltak
+import scipy as sp
+import gc
+
+# loading delta_dm, delta_dm_squared, and nabla2_dm
+delta_dm = np.load('/pscratch/sd/d/danialb/delta_dm.npy')
+delta_dm_squared = np.load('/pscratch/sd/d/danialb/delta_dm_squared.npy')
+nabla2_dm = np.load('/pscratch/sd/d/danialb/nabla2_dm.npy').astype(np.float32)
+s2_dm = np.load('/pscratch/sd/d/danialb/s2_dm.npy').astype(np.float32)
+
+delta_dm_fft = rfftn(delta_dm, workers=-1) / np.complex64(delta_dm.size)
+delta_dm_squared_fft = rfftn(delta_dm_squared, workers=-1) / np.complex64(delta_dm_squared.size)
+nabla2_dm_fft = rfftn(nabla2_dm, workers=-1) / np.complex64(nabla2_dm.size)
+s2_dm_fft = rfftn(s2_dm, workers=-1) / np.complex64(s2_dm.size)
+del delta_dm
+del delta_dm_squared
+del nabla2_dm
+del s2_dm
+gc.collect()
+
+Lbox = 64691.7 / 1.e3  # cMpc/h
+k_bin_edges = np.linspace(0.08, 20, 101)
+mu_bin_edges = np.array([0, 1.])
+
+redshifts = [ 7.0, 7.5, 8.3, 10.82]
+snapshots = [ 240, 209, 168, 83]
+for i in range(len(redshifts)):
+        delta_21 = np.load(f"/pscratch/sd/d/danialb/delta_21_snap{snapshots[i]:d}.npy")
+
+        delta_21_fft = rfftn(delta_21, workers=-1) / np.complex64(delta_21.size)
+
+        
+    # 1) pk_21
+        result = calc_pk_from_deltak(delta_21_fft, Lbox, k_bin_edges, mu_bin_edges)
+
+        pk_21 = result['power']
+        Nmode = result['N_mode']
+        binned_poles = result['binned_poles']
+        N_mode_poles = result['N_mode_poles']
+        k_avg = result['k_avg']
+
+        np.savez(f"data/power_21_snap{snapshots[i]:d}.npz", pk_21=pk_21, k_bin_edges=k_bin_edges, Nmode=Nmode, k_avg=k_avg)
+
+
+    # 3) pk_21_delta_dm
+        result = calc_pk_from_deltak(delta_21_fft, Lbox, k_bin_edges, mu_bin_edges, field2_fft=delta_dm_fft)
+
+        pk_21_delta_dm = result['power']
+        Nmode = result['N_mode']
+        binned_poles = result['binned_poles']
+        N_mode_poles = result['N_mode_poles']
+        k_avg = result['k_avg']
+   
+        np.savez(f"data/power_21_delta_dm_snap{snapshots[i]:d}.npz",pk_21_delta_dm=pk_21_delta_dm, k_bin_edges=k_bin_edges, Nmode=Nmode, k_avg=k_avg)
+   
+     # 4) pk_21_delta_dm_squared
+        result = calc_pk_from_deltak(delta_21_fft, Lbox, k_bin_edges, mu_bin_edges, field2_fft=delta_dm_squared_fft)
+
+        pk_21_delta_dm_squared = result['power']
+        Nmode = result['N_mode']
+        binned_poles = result['binned_poles']
+        N_mode_poles = result['N_mode_poles']
+        k_avg = result['k_avg']
+   
+        np.savez(f"data/power_21_delta_dm_squared_snap{snapshots[i]:d}.npz",pk_21_delta_dm_squared=pk_21_delta_dm_squared, k_bin_edges=k_bin_edges, Nmode=Nmode, k_avg=k_avg)
+    
+     # 5) pk_21_nabla_2_dm
+        result = calc_pk_from_deltak(delta_21_fft, Lbox, k_bin_edges, mu_bin_edges, field2_fft=nabla2_dm_fft)
+
+        pk_21_nabla2_dm = result['power']
+        Nmode = result['N_mode']
+        binned_poles = result['binned_poles']
+        N_mode_poles = result['N_mode_poles']
+        k_avg = result['k_avg']
+   
+        np.savez(f"data/power_21_nabla2_dm_snap{snapshots[i]:d}.npz",pk_21_nabla2_dm=pk_21_nabla2_dm, k_bin_edges=k_bin_edges, Nmode=Nmode, k_avg=k_avg)
+    
+        
+     # 6) pk_21_s2_dm
+        result = calc_pk_from_deltak(delta_21_fft, Lbox, k_bin_edges, mu_bin_edges, field2_fft=s2_dm_fft)
+
+        pk_21_s2_dm = result['power']
+        Nmode = result['N_mode']
+        binned_poles = result['binned_poles']
+        N_mode_poles = result['N_mode_poles']
+        k_avg = result['k_avg']
+   
+        np.savez(f"data/power_21_s2_dm_snap{snapshots[i]:d}.npz",pk_21_s2_dm=pk_21_s2_dm, k_bin_edges=k_bin_edges, Nmode=Nmode, k_avg=k_avg)
+        del delta_21_fft
+        gc.collect()
+
+# 1) pk_delta_dm
+result = calc_pk_from_deltak(delta_dm_fft, Lbox, k_bin_edges, mu_bin_edges)
+
+pk_delta_dm = result['power']
+Nmode = result['N_mode']
+binned_poles = result['binned_poles']
+N_mode_poles = result['N_mode_poles']
+k_avg = result['k_avg']
+
+np.savez("data/power_dm.npz", pk_delta_dm=pk_delta_dm, k_bin_edges=k_bin_edges, Nmode=Nmode, k_avg=k_avg)
+
+# 2) pk_delta_dm_squared
+result = calc_pk_from_deltak(delta_dm_squared_fft, Lbox, k_bin_edges, mu_bin_edges)
+
+pk_delta_dm_squared = result['power']
+Nmode = result['N_mode']
+binned_poles = result['binned_poles']
+N_mode_poles = result['N_mode_poles']
+k_avg = result['k_avg']
+
+np.savez("data/power_dm_squared.npz", pk_delta_dm_squared=pk_delta_dm_squared, k_bin_edges=k_bin_edges, Nmode=Nmode, k_avg=k_avg)
+
+result = calc_pk_from_deltak(nabla2_dm_fft, Lbox, k_bin_edges, mu_bin_edges)
+
+pk_nabla2_dm = result['power']
+Nmode = result['N_mode']
+binned_poles = result['binned_poles']
+N_mode_poles = result['N_mode_poles']
+k_avg = result['k_avg']
+
+np.savez("data/power_nabla2_dm.npz", pk_nabla2_dm=pk_nabla2_dm, k_bin_edges=k_bin_edges, Nmode=Nmode, k_avg=k_avg)
+
+result = calc_pk_from_deltak(s2_dm_fft, Lbox, k_bin_edges, mu_bin_edges)
+
+pk_s2_dm = result['power']
+Nmode = result['N_mode']
+binned_poles = result['binned_poles']
+N_mode_poles = result['N_mode_poles']
+k_avg = result['k_avg']
+
+np.savez("data/power_s2_dm.npz", pk_s2_dm=pk_s2_dm, k_bin_edges=k_bin_edges, Nmode=Nmode, k_avg=k_avg)
