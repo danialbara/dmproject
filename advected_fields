@@ -1,0 +1,78 @@
+#NEEDS TO BE UPDATED
+
+
+import gc
+import numpy as np
+import scipy as sp
+from abacusnbody.analysis.tsc import tsc_parallel
+import matplotlib.pyplot as plt
+
+
+def delta_growth_factor(z, omega_m0):
+    a = 1/(z+1) #Scale factor
+    w = -1 #EoS for the Dark Energy. We assume w=-1 for standard DE.
+    omega_m = (omega_m0*a**(-3))/(omega_m0*a**(-3)+(1-omega_m0))
+
+    delta =  a*sp.special.hyp2f1( (w-1)/(2*w) , -1/(3*w) ,
+                               1- 5/(6*w),1 - 1/omega_m )
+
+    return delta
+
+def growth_factor(z, omega_m0=0.3089):
+    num = delta_growth_factor(z,omega_m0=omega_m0)
+    den = delta_growth_factor(0,omega_m0=omega_m0)
+    dz = num/den
+    return dz
+
+snap_int = 40
+z_IC = 20.
+snap_dict = {0: z_IC, 40: 8.3, 48: 7.5, 54: 7.0}
+D_ratio = growth_factor(snap_dict[snap_int])/growth_factor(z_IC) 
+
+nmesh = 1024
+Lbox = 64691.7  # kpc/h
+pixel_size = Lbox / nmesh #kpc/h
+fields = ['delta_dm', 'delta_dm_squared', 'nabla2_dm', 's2_dm']
+squared_fields = ['delta_dm_squared', 's2_dm']
+
+for field in fields:
+    field_dm = f"/pscratch/sd/d/danialb/{field}.npy"
+    field_file = np.load(field_dm)
+    field_advected_name = f"{field}_advected"
+    field_advected = np.zeros([nmesh, nmesh, nmesh], dtype=np.float32)
+    
+    for part in range(1, 11): 
+        print(part)
+        lagr_file = f"/pscratch/sd/b/boryanah/Thesan/position_rsd_sorted_000_Thesan-Dark-1_part{part}_of_10.npy"
+        lagr_pos = np.load(lagr_file)
+        pixel_index = np.floor(lagr_pos[:, :3] / pixel_size).astype(int) % nmesh
+        if field in squared_fields:
+            field_values = (field_file * D_ratio ** 2)[pixel_index[:, 0], pixel_index[:, 1], pixel_index[:, 2]]
+        else:
+            field_values = (field_file * D_ratio)[pixel_index[:, 0], pixel_index[:, 1], pixel_index[:, 2]]
+        del pixel_index, lagr_pos
+        gc.collect()
+        print("one half")
+    
+        pcle_file = f"/pscratch/sd/b/boryanah/Thesan/position_rsd_sorted_{snap_int:03d}_Thesan-Dark-1_part{part}_of_10.npy"
+        pcle_pos = np.load(pcle_file)
+        tsc_parallel(pcle_pos[:, :3], field_advected, Lbox, weights=field_values)
+        print("second half")
+        del field_values, pcle_pos
+        gc.collect()
+    np.save(f'/pscratch/sd/d/danialb/{field_advected_name}.npy', field_advected)
+    del field_file, field_advected
+    gc.collect()
+    print(f"Saved advected array for {field}")
+
+
+field_advected = np.zeros([nmesh, nmesh, nmesh], dtype=np.float32)
+for part in range(1, 11): 
+    print(part) 
+    pcle_file = f"/pscratch/sd/b/boryanah/Thesan/position_rsd_sorted_{snap_int:03d}_Thesan-Dark-1_part{part}_of_10.npy"
+    pcle_pos = np.load(pcle_file)
+    tsc_parallel(pcle_pos[:, :3], field_advected, Lbox)
+    del pcle_pos
+    gc.collect()
+np.save(f'/pscratch/sd/d/danialb/ones_advected.npy', field_advected)
+
