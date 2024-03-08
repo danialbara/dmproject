@@ -1,6 +1,5 @@
 #NEEDS TO BE UPDATED
 
-
 import gc
 import numpy as np
 import scipy as sp
@@ -37,8 +36,8 @@ squared_fields = ['delta_dm_squared', 's2_dm']
 
 for field in fields:
     field_dm = f"/pscratch/sd/d/danialb/{field}.npy"
-    field_file = np.load(field_dm)
-    field_advected_name = f"{field}_advected"
+    field_file = np.load(field_dm).astype(np.float32)
+    field_advected_name =  f"{field}_advected_{snap_int:d}"
     field_advected = np.zeros([nmesh, nmesh, nmesh], dtype=np.float32)
     
     for part in range(1, 11): 
@@ -64,15 +63,3 @@ for field in fields:
     del field_file, field_advected
     gc.collect()
     print(f"Saved advected array for {field}")
-
-
-field_advected = np.zeros([nmesh, nmesh, nmesh], dtype=np.float32)
-for part in range(1, 11): 
-    print(part) 
-    pcle_file = f"/pscratch/sd/b/boryanah/Thesan/position_rsd_sorted_{snap_int:03d}_Thesan-Dark-1_part{part}_of_10.npy"
-    pcle_pos = np.load(pcle_file)
-    tsc_parallel(pcle_pos[:, :3], field_advected, Lbox)
-    del pcle_pos
-    gc.collect()
-np.save(f'/pscratch/sd/d/danialb/ones_advected.npy', field_advected)
-
