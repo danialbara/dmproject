@@ -1,5 +1,3 @@
-#NEEDS TO BE UPDATED
-
 import gc
 import numpy as np
 import scipy as sp
@@ -23,7 +21,7 @@ def growth_factor(z, omega_m0=0.3089):
     dz = num/den
     return dz
 
-snap_int = 40
+snap_int = 54
 z_IC = 20.
 snap_dict = {0: z_IC, 40: 8.3, 48: 7.5, 54: 7.0}
 D_ratio = growth_factor(snap_dict[snap_int])/growth_factor(z_IC) 
