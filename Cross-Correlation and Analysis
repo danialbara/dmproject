@@ -1,3 +1,5 @@
+#NOT FINAL VERSION 
+
 #CROSS AND AUTO CORRELATIONS
 # Cross correlation for all four fields 
 fields_advected = ['delta_dm_advected', 'delta_dm_squared_advected', 'nabla2_dm_advected', 's2_dm_advected', 'ones_dm_advected' ]
