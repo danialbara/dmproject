@@ -1,0 +1,32 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+redshifts = [10.82, 9.0, 8.3, 7.5, 7.0, 6.5, 6.0, 5.75]
+snap_ints = [23, 34, 40, 48, 54, 61, 70, 75]
+fields = ['delta_dm', 'delta_dm_squared', 'nabla2_dm', 's2_dm', 'ones_dm', 'delta_21' ]
+
+for redshift, snap_int in zip(redshifts, snap_ints):
+    data = np.load(f"data/power_delta_21_advected_snap{snap_int}.npz")
+    pk_delta_21 = data['pk']
+    plt.figure()
+    plt.title(f"z = {redshift}")
+    for field in fields:
+        data = np.load(f"data/power_{field}_advected_snap{snap_int}.npz")
+        pk = data['pk']
+        k_avg = data['k_avg']
+
+        
+        if field != "delta_21":
+            data = np.load(f"data/power_delta_21_{field}_advected_snap{snap_int}.npz")
+            pk_21_field = data['pk']
+        
+            r_pk = (pk_21_field)/(pk_delta_21*pk)**(1/2)
+            r_pk = r_pk.flatten()
+            plt.plot(k_avg, np.abs(r_pk), label=f"21, {field}_advected")
+            plt.gca().axhline(y=1, ls='--', color='k')
+
+    plt.legend()
+    plt.xscale('log')
+    plt.xlabel('k')
+    plt.ylabel('r(k)')
+    plt.ylim([0, 1.0]) 
