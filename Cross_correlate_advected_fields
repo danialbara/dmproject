@@ -1,0 +1,73 @@
+import abacusnbody
+import abacusnbody.analysis
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+from scipy.fft import rfftn, irfftn
+from abacusnbody.analysis.power_spectrum import calc_pk_from_deltak
+import scipy as sp
+import gc
+
+
+z_IC = 20. 
+snap_int = 34
+snap_dict = {0: [z_IC, -1], 40: [8.3, 168], 48: [7.5, 209], 54: [7.0, 240], 75: [5.75, 342], 70: [6.0, 318], 61: [6.5, 276], 34: [9.0, 139], 23: [10.82, 83] }
+
+# Loading the files
+delta_21_advected = np.load(f"/pscratch/sd/b/boryanah/Thesan/density_HI_{snap_dict[snap_int][1]:d}.npy")
+# delta_21_advected = np.load(f"/pscratch/sd/b/boryanah/Thesan/density_HI_{snap_dict[snap_int][1]:03d}.npy")
+
+delta_dm_advected = np.load(f'/pscratch/sd/d/danialb/delta_dm_advected_{snap_int:d}.npy')
+delta_dm_squared_advected = np.load(f'/pscratch/sd/d/danialb/delta_dm_squared_advected_{snap_int:d}.npy')
+nabla2_dm_advected = np.load(f'/pscratch/sd/d/danialb/nabla2_dm_advected_{snap_int:d}.npy')
+s2_dm_advected = np.load(f'/pscratch/sd/d/danialb/s2_dm_advected_{snap_int:d}.npy')
+
+ones_dm_advected = np.load(f'/pscratch/sd/d/danialb/ones_dm_advected_{snap_int:d}.npy')
+
+# 2) Fourier transforming fields 
+delta_21_advected = delta_21_advected / np.mean(delta_21_advected, dtype=np.float64) - 1.
+delta_21_advected_fft = rfftn(delta_21_advected, workers=-1) / np.complex64(delta_21_advected.size)
+
+delta_dm_advected_fft = rfftn(delta_dm_advected, workers=-1) / np.complex64(delta_dm_advected.size)
+delta_dm_squared_advected_fft = rfftn(delta_dm_squared_advected, workers=-1) / np.complex64(delta_dm_squared_advected.size)
+nabla2_dm_advected_fft = rfftn(nabla2_dm_advected, workers=-1) / np.complex64(nabla2_dm_advected.size)
+s2_dm_advected_fft = rfftn(s2_dm_advected, workers=-1) / np.complex64(s2_dm_advected.size)
+
+ones_dm_advected_fft = rfftn(ones_dm_advected, workers=-1) / np.complex64(ones_dm_advected.size)
+
+del delta_dm_advected, delta_dm_squared_advected, nabla2_dm_advected, s2_dm_advected, delta_21_advected, ones_dm_advected
+gc.collect()
+
+Lbox = 64.6917  # cMpc/h
+k_bin_edges = np.linspace(0.08, 20, 101)
+mu_bin_edges = np.array([0, 1.])
+
+# Cross correlation for all four fields 
+fields_advected = ['delta_dm_advected', 'delta_dm_squared_advected', 'nabla2_dm_advected', 's2_dm_advected', 'ones_dm_advected' ]
+
+for field in fields_advected:
+    result = calc_pk_from_deltak(delta_21_advected_fft, Lbox, k_bin_edges, mu_bin_edges, field2_fft=locals()[f"{field}_fft"])
+
+    pk = result['power']
+    Nmode = result['N_mode']
+    binned_poles = result['binned_poles']
+    N_mode_poles = result['N_mode_poles']
+    k_avg = result['k_avg']
+   
+    np.savez(f"data/power_delta_21_{field}_snap{snap_int:d}.npz", pk=pk, k_bin_edges=k_bin_edges, Nmode=Nmode, k_avg=k_avg)
+    print(f"Saved cross-correlation for {field} at snap {snap_int:d}")
+
+# Autocorreletion for all four fields and delta_21 
+fields_advected = ['delta_dm_advected', 'delta_dm_squared_advected', 'nabla2_dm_advected', 's2_dm_advected', 'delta_21_advected', 'ones_dm_advected']
+
+for field in fields_advected:
+    result = calc_pk_from_deltak(locals()[f"{field}_fft"], Lbox, k_bin_edges, mu_bin_edges)
+
+    pk = result['power']
+    Nmode = result['N_mode']
+    binned_poles = result['binned_poles']
+    N_mode_poles = result['N_mode_poles']
+    k_avg = result['k_avg']
+
+    np.savez(f"data/power_{field}_snap{snap_int:d}.npz", pk=pk, k_bin_edges=k_bin_edges, Nmode=Nmode, k_avg=k_avg)
+    print(f"Saved auto-correlation for {field} at snap {snap_int:d}")
