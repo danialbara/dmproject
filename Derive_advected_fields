@@ -5,6 +5,8 @@ from abacusnbody.analysis.tsc import tsc_parallel
 import matplotlib.pyplot as plt
 
 
+
+
 def delta_growth_factor(z, omega_m0):
     a = 1/(z+1) #Scale factor
     w = -1 #EoS for the Dark Energy. We assume w=-1 for standard DE.
@@ -21,9 +23,9 @@ def growth_factor(z, omega_m0=0.3089):
     dz = num/den
     return dz
 
-snap_int = 54
+snap_int = 23
 z_IC = 20.
-snap_dict = {0: z_IC, 40: 8.3, 48: 7.5, 54: 7.0}
+snap_dict = {0: z_IC, 40: 8.3, 48: 7.5, 54: 7.0, 75: 5.75, 70: 6.0, 61: 6.5, 34: 9.0, 23: 10.82}
 D_ratio = growth_factor(snap_dict[snap_int])/growth_factor(z_IC) 
 
 nmesh = 1024
@@ -61,3 +63,49 @@ for field in fields:
     del field_file, field_advected
     gc.collect()
     print(f"Saved advected array for {field}")
+
+
+
+
+
+
+
+def delta_growth_factor(z, omega_m0):
+    a = 1/(z+1) #Scale factor
+    w = -1 #EoS for the Dark Energy. We assume w=-1 for standard DE.
+    omega_m = (omega_m0*a**(-3))/(omega_m0*a**(-3)+(1-omega_m0))
+
+    delta =  a*sp.special.hyp2f1( (w-1)/(2*w) , -1/(3*w) ,
+                               1- 5/(6*w),1 - 1/omega_m )
+
+    return delta
+
+def growth_factor(z, omega_m0=0.3089):
+    num = delta_growth_factor(z,omega_m0=omega_m0)
+    den = delta_growth_factor(0,omega_m0=omega_m0)
+    dz = num/den
+    return dz
+
+snap_int = 23
+z_IC = 20.
+snap_dict = {0: z_IC, 40: 8.3, 48: 7.5, 54: 7.0, 75: 5.75, 70: 6.0, 61: 6.5, 34: 9.0, 23: 10.82}
+D_ratio = growth_factor(snap_dict[snap_int])/growth_factor(z_IC) 
+
+nmesh = 1024
+Lbox = 64691.7  # kpc/h
+pixel_size = Lbox / nmesh #kpc/h
+
+field = "ones_dm"
+field_advected = np.zeros([nmesh, nmesh, nmesh], dtype=np.float32)
+field_advected_name = f"{field}_advected_{snap_int:d}"
+for part in range(1, 11): 
+    print(part)
+    pcle_file = f"/pscratch/sd/b/boryanah/Thesan/position_rsd_sorted_{snap_int:03d}_Thesan-Dark-1_part{part}_of_10.npy"
+    pcle_pos = np.load(pcle_file)
+    tsc_parallel(pcle_pos[:, :3], field_advected, Lbox)
+    del pcle_pos
+    gc.collect()
+np.save(f'/pscratch/sd/d/danialb/{field_advected_name}.npy', field_advected)
+del field_advected
+gc.collect()
+print(f"Saved advected array for ones")
