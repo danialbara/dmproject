@@ -1,0 +1,132 @@
+import abacusnbody
+import abacusnbody.analysis
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+from scipy.fft import rfftn, irfftn
+from abacusnbody.analysis.power_spectrum import calc_pk_from_deltak
+import scipy as sp
+import gc
+
+z_IC = 20. 
+snap_int = 23
+snap_dict = {0: [z_IC, -1], 40: [8.3, 168], 48: [7.5, 209], 54: [7.0, 240], 75: [5.75, 342], 70: [6.0, 318], 61: [6.5, 276], 34: [9.0, 139], 23: [10.82, 83] }
+
+delta_21_advected = np.load(f"/pscratch/sd/b/boryanah/Thesan/density_HI_{snap_dict[snap_int][1]:03d}.npy")
+delta_dm_advected = np.load(f'/pscratch/sd/d/danialb/delta_dm_advected_{snap_int:d}.npy')
+delta_dm_squared_advected = np.load(f'/pscratch/sd/d/danialb/delta_dm_squared_advected_{snap_int:d}.npy')
+nabla2_dm_advected = np.load(f'/pscratch/sd/d/danialb/nabla2_dm_advected_{snap_int:d}.npy')
+s2_dm_advected = np.load(f'/pscratch/sd/d/danialb/s2_dm_advected_{snap_int:d}.npy')
+ones_dm_advected = np.load(f'/pscratch/sd/d/danialb/ones_dm_advected_{snap_int:d}.npy')
+
+delta_21_advected = delta_21_advected / np.mean(delta_21_advected, dtype=np.float64) - 1.
+delta_21_advected += 1
+delta_21_obs_fft = rfftn(delta_21_advected, workers=-1) / np.complex64(delta_21_advected.size)
+
+delta_dm_advected_fft = rfftn(delta_dm_advected, workers=-1) / np.complex64(delta_dm_advected.size)
+delta_dm_squared_advected_fft = rfftn(delta_dm_squared_advected, workers=-1) / np.complex64(delta_dm_squared_advected.size)
+nabla2_dm_advected_fft = rfftn(nabla2_dm_advected, workers=-1) / np.complex64(nabla2_dm_advected.size)
+s2_dm_advected_fft = rfftn(s2_dm_advected, workers=-1) / np.complex64(s2_dm_advected.size)
+ones_dm_advected_fft = rfftn(ones_dm_advected, workers=-1) / np.complex64(ones_dm_advected.size)
+
+del delta_dm_advected, delta_dm_squared_advected, nabla2_dm_advected, s2_dm_advected, delta_21_advected, ones_dm_advected
+gc.collect()
+
+def mini_fun(bias):
+    b1, b2, bs, bn = bias
+    delta_model_fft = ones_dm_advected_fft + b1*delta_dm_advected_fft + b2*delta_dm_squared_advected_fft + bs*s2_dm_advected_fft + bn*ones_dm_advected_fft
+    diff = delta_21_obs_fft - delta_model_fft 
+    sum_diff2 = np.sum(diff[k < 10.]**2.) 
+    print(sum_diff2)
+    return sum_diff2
+
+import scipy
+# def mini_fun(x):
+#     b1, b2, bs, bn = x
+x0 = [1., 1., 1., 1.] # initial guess for the bias parameters
+res = scipy.optimize.minimize(mini_fun, x0, method='Powell')
+#res = scipy.optimize.minimize(lambda x: mini_fun(*x), x0, method='CG')
+print(res) # to see whether what you get makes sense
+b1, b2, bs, bn = res['x']
+print(b1, b2, bs, bn)
+
+delta_model_fft = ones_dm_advected_fft + b1*delta_dm_advected_fft + b2*delta_dm_squared_advected_fft + bs*s2_dm_advected_fft + bn*ones_dm_advected_fft
+
+Lbox = 64.6917  # cMpc/h
+k_bin_edges = np.linspace(0.08, 20, 101)
+mu_bin_edges = np.array([0, 1.])
+
+# Autocorreletion
+fields_advected = ['delta_model', 'delta_21_obs']
+
+for field in fields_advected:
+    result = calc_pk_from_deltak(locals()[f"{field}_fft"], Lbox, k_bin_edges, mu_bin_edges)
+
+    pk = result['power']
+    Nmode = result['N_mode']
+    binned_poles = result['binned_poles']
+    N_mode_poles = result['N_mode_poles']
+    k_avg = result['k_avg']
+
+    np.savez(f"data/power_{field}_fft_snap{snap_int:d}.npz", pk=pk, k_bin_edges=k_bin_edges, Nmode=Nmode, k_avg=k_avg)
+    print(f"Saved auto-correlation for {field} at snap {snap_int:d}")
+
+# Cross correlation for all four fields 
+fields_advected = ['delta_model']
+for field in fields_advected:
+    result = calc_pk_from_deltak(delta_21_obs_fft, Lbox, k_bin_edges, mu_bin_edges, field2_fft=locals()[f"{field}_fft"])
+
+    pk = result['power']
+    Nmode = result['N_mode']
+    binned_poles = result['binned_poles']
+    N_mode_poles = result['N_mode_poles']
+    k_avg = result['k_avg']
+   
+    np.savez(f"data/power_delta_21_{field}_fft_snap{snap_int:d}.npz", pk=pk, k_bin_edges=k_bin_edges, Nmode=Nmode, k_avg=k_avg)
+    print(f"Saved cross-correlation for {field} at snap {snap_int:d}")
+
+redshifts = [10.82]
+snap_ints = [23]
+fields = ['delta_model_fft', 'delta_21_obs_fft']
+
+for redshift, snap_int in zip(redshifts, snap_ints):
+    
+    plt.figure(1)
+    plt.title(f"z = {redshift}")
+    plt.figure(2)
+    for field in fields:
+        data = np.load(f"data/power_{field}_snap{snap_int}.npz")
+        pk = data['pk']
+        k_avg = data['k_avg']
+
+        
+        if field != "delta_21_obs_fft":
+            data = np.load(f"data/power_delta_21_obs_fft_snap{snap_int}.npz")
+            pk_delta_21 = data['pk']
+            
+            data = np.load(f"data/power_delta_21_{field}_snap{snap_int}.npz")
+            pk_21_field = data['pk']
+        
+            r_pk = (pk_21_field)/(pk_delta_21*pk)**(1/2)
+            r_pk = r_pk.flatten()
+            plt.figure(1)
+            plt.plot(k_avg, np.abs(r_pk), label=f"delta_21_obs, {field}")
+            plt.gca().axhline(y=1, ls='--', color='k')
+            
+        plt.figure(2)
+        plt.plot(k_avg, pk, label=f"{field}")
+
+    plt.figure(1)
+    plt.legend()
+    plt.xscale('log')
+    # plt.yscale('log')
+    plt.xlabel('k')
+    plt.ylabel('r(k)')
+    plt.ylim([0, 1.0]) 
+    
+    plt.figure(2)
+    plt.legend()
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel('k')
+    plt.ylabel('P(k)') 
